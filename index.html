@@ -11,15 +11,6 @@
       overflow: hidden;
       background: #210706;
     }
-
-    /* Center the sketch perfectly */
-    #wrap {
-      width: 100%;
-      height: 100%;
-      display: grid;
-      place-items: center;
-    }
-
     canvas {
       display: block;
       touch-action: none;
@@ -33,15 +24,20 @@
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script>
     // Prevent double initialization in embedded environments
-    if (!window.__noiseMapSketchInit) {
-      window.__noiseMapSketchInit = true;
+    if (!window.__noiseFullScreenInit) {
+      window.__noiseFullScreenInit = true;
 
       new p5((p) => {
-        let noiseScale = 0.01;
+        // Your original scale
+        const noiseScale = 0.01;
 
-        // De-dupe press events (Framer sometimes fires twice)
+        // We change the noise by shifting the sampling origin each click/tap
+        let seedX = 0;
+        let seedY = 0;
+
+        // De-dupe press events (Framer can fire twice)
         let lastFire = 0;
-        const FIRE_GAP_MS = 60;
+        const FIRE_GAP_MS = 70;
 
         function fireOnce(fn) {
           const now = performance.now();
@@ -50,15 +46,14 @@
           fn();
         }
 
-        function fitSize() {
-          // Fit to the available viewport (embed frame)
-          const w = document.documentElement.clientWidth;
-          const h = document.documentElement.clientHeight;
-          return Math.floor(Math.min(w, h));
+        function resizeToScreen() {
+          // Fill the entire available area (embed viewport)
+          const w = Math.max(1, document.documentElement.clientWidth);
+          const h = Math.max(1, document.documentElement.clientHeight);
+          p.resizeCanvas(w, h);
         }
 
         function renderNoise() {
-          // Important: keep pixelDensity 1 for predictable pixel indexing
           p.pixelDensity(1);
           p.loadPixels();
 
@@ -67,17 +62,17 @@
 
           for (let y = 0; y < H; y++) {
             for (let x = 0; x < W; x++) {
-              const n = p.noise(x * noiseScale, y * noiseScale);
+              const n = p.noise((x + seedX) * noiseScale, (y + seedY) * noiseScale);
               const i = 4 * (y * W + x);
 
               if (n > 0.5) {
-                // water: 139,157,204
+                // water 139, 157, 204
                 p.pixels[i + 0] = 139;
                 p.pixels[i + 1] = 157;
                 p.pixels[i + 2] = 204;
                 p.pixels[i + 3] = 255;
               } else {
-                // land: 33,7,6
+                // land 33, 7, 6
                 p.pixels[i + 0] = 33;
                 p.pixels[i + 1] = 7;
                 p.pixels[i + 2] = 6;
@@ -89,40 +84,48 @@
           p.updatePixels();
         }
 
-        p.setup = () => {
-          const size = fitSize();
+        function regenerate() {
+          // Move the noise window so the pattern changes without needing p.noiseSeed
+          seedX = p.floor(p.random(0, 100000));
+          seedY = p.floor(p.random(0, 100000));
+          p.redraw();
+        }
 
-          const c = p.createCanvas(size, size, p.P2D);
+        p.setup = () => {
+          // Create full-screen canvas immediately
+          const w = Math.max(1, document.documentElement.clientWidth);
+          const h = Math.max(1, document.documentElement.clientHeight);
+          const c = p.createCanvas(w, h, p.P2D);
           c.parent("wrap");
 
           p.noLoop();
-          p.noStroke();
 
-          // Initial draw
-          p.redraw();
+          // Initial render once (then only changes on click/tap)
+          regenerate();
         };
 
         p.draw = () => {
+          // Optional background (your land color already covers pixels)
           p.background("#210706");
           renderNoise();
         };
 
-        // Responsive resizing
+        // Keep it full-screen and not cut off
         p.windowResized = () => {
-          const size = fitSize();
-          p.resizeCanvas(size, size);
-          p.redraw();
+          resizeToScreen();
+          p.redraw(); // keep current seed, just re-render at new size
         };
 
-        // Press/tap interaction (ONLY on press)
+        // Desktop: change noise on press/click
         p.mousePressed = () => {
-          fireOnce(() => p.redraw());
+          fireOnce(regenerate);
           return false;
         };
 
+        // Phone/tablet: change noise on touch
         p.touchStarted = () => {
-          fireOnce(() => p.redraw());
-          return false; // prevents scroll + synthetic click
+          fireOnce(regenerate);
+          return false;
         };
       });
     }
