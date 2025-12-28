@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #210706;
+      display: grid;
+      place-items: center;
+    }
+    canvas {
+      display: block;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script>
+  if (!window.__noiseSketchInit) {
+    window.__noiseSketchInit = true;
+
+    const canvas = document.getElementById("c");
+
+    function getLocalXY(e) {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    new p5((p) => {
+      p.setup = () => {
+        const size = 640;
+        p.createCanvas(size, size, p.P2D);
+        p.noLoop();
+        canvas.style.width = size + "px";
+        canvas.style.height = size + "px";
+      };
+
+      p.draw = () => {
+        p.pixelDensity(1);
+        p.loadPixels();
+
+        const noiseScale = 0.01;
+
+        for (let y = 0; y < p.height; y++) {
+          for (let x = 0; x < p.width; x++) {
+            const n = p.noise(x * noiseScale, y * noiseScale);
+            const i = 4 * (y * p.width + x);
+
+            if (n > 0.5) {
+              p.pixels[i] = 139;
+              p.pixels[i + 1] = 157;
+              p.pixels[i + 2] = 204;
+              p.pixels[i + 3] = 255;
+            } else {
+              p.pixels[i] = 33;
+              p.pixels[i + 1] = 7;
+              p.pixels[i + 2] = 6;
+              p.pixels[i + 3] = 255;
+            }
+          }
+        }
+
+        p.updatePixels();
+      };
+
+      // Redraw on desktop mouse press only
+      p.mousePressed = () => {
+        redraw();
+      };
+
+      // Redraw on mobile/tablet touch press only
+      p.touchStarted = () => {
+        redraw();
+        return false;
+      };
+
+      // Prevent synthetic click after touch from triggering another redraw
+      p.mouseClicked = () => false;
+      p.touchEnded = () => false;
+
+      function redraw() {
+        p.redraw();
+      }
+
+      redraw();
+    });
+  }
+  </script>
+</body>
+</html>
