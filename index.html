@@ -10,90 +10,122 @@
       height: 100%;
       overflow: hidden;
       background: #210706;
+    }
+
+    /* Center the sketch perfectly */
+    #wrap {
+      width: 100%;
+      height: 100%;
       display: grid;
       place-items: center;
     }
+
     canvas {
       display: block;
-      touch-action: manipulation;
+      touch-action: none;
       -webkit-tap-highlight-color: transparent;
     }
   </style>
 </head>
 <body>
-  <canvas id="c"></canvas>
+  <div id="wrap"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script>
-  if (!window.__noiseSketchInit) {
-    window.__noiseSketchInit = true;
+    // Prevent double initialization in embedded environments
+    if (!window.__noiseMapSketchInit) {
+      window.__noiseMapSketchInit = true;
 
-    const canvas = document.getElementById("c");
+      new p5((p) => {
+        let noiseScale = 0.01;
 
-    function getLocalXY(e) {
-      const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
-    }
+        // De-dupe press events (Framer sometimes fires twice)
+        let lastFire = 0;
+        const FIRE_GAP_MS = 60;
 
-    new p5((p) => {
-      p.setup = () => {
-        const size = 640;
-        p.createCanvas(size, size, p.P2D);
-        p.noLoop();
-        canvas.style.width = size + "px";
-        canvas.style.height = size + "px";
-      };
-
-      p.draw = () => {
-        p.pixelDensity(1);
-        p.loadPixels();
-
-        const noiseScale = 0.01;
-
-        for (let y = 0; y < p.height; y++) {
-          for (let x = 0; x < p.width; x++) {
-            const n = p.noise(x * noiseScale, y * noiseScale);
-            const i = 4 * (y * p.width + x);
-
-            if (n > 0.5) {
-              p.pixels[i] = 139;
-              p.pixels[i + 1] = 157;
-              p.pixels[i + 2] = 204;
-              p.pixels[i + 3] = 255;
-            } else {
-              p.pixels[i] = 33;
-              p.pixels[i + 1] = 7;
-              p.pixels[i + 2] = 6;
-              p.pixels[i + 3] = 255;
-            }
-          }
+        function fireOnce(fn) {
+          const now = performance.now();
+          if (now - lastFire < FIRE_GAP_MS) return;
+          lastFire = now;
+          fn();
         }
 
-        p.updatePixels();
-      };
+        function fitSize() {
+          // Fit to the available viewport (embed frame)
+          const w = document.documentElement.clientWidth;
+          const h = document.documentElement.clientHeight;
+          return Math.floor(Math.min(w, h));
+        }
 
-      // Redraw on desktop mouse press only
-      p.mousePressed = () => {
-        redraw();
-      };
+        function renderNoise() {
+          // Important: keep pixelDensity 1 for predictable pixel indexing
+          p.pixelDensity(1);
+          p.loadPixels();
 
-      // Redraw on mobile/tablet touch press only
-      p.touchStarted = () => {
-        redraw();
-        return false;
-      };
+          const W = p.width;
+          const H = p.height;
 
-      // Prevent synthetic click after touch from triggering another redraw
-      p.mouseClicked = () => false;
-      p.touchEnded = () => false;
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              const n = p.noise(x * noiseScale, y * noiseScale);
+              const i = 4 * (y * W + x);
 
-      function redraw() {
-        p.redraw();
-      }
+              if (n > 0.5) {
+                // water: 139,157,204
+                p.pixels[i + 0] = 139;
+                p.pixels[i + 1] = 157;
+                p.pixels[i + 2] = 204;
+                p.pixels[i + 3] = 255;
+              } else {
+                // land: 33,7,6
+                p.pixels[i + 0] = 33;
+                p.pixels[i + 1] = 7;
+                p.pixels[i + 2] = 6;
+                p.pixels[i + 3] = 255;
+              }
+            }
+          }
 
-      redraw();
-    });
-  }
+          p.updatePixels();
+        }
+
+        p.setup = () => {
+          const size = fitSize();
+
+          const c = p.createCanvas(size, size, p.P2D);
+          c.parent("wrap");
+
+          p.noLoop();
+          p.noStroke();
+
+          // Initial draw
+          p.redraw();
+        };
+
+        p.draw = () => {
+          p.background("#210706");
+          renderNoise();
+        };
+
+        // Responsive resizing
+        p.windowResized = () => {
+          const size = fitSize();
+          p.resizeCanvas(size, size);
+          p.redraw();
+        };
+
+        // Press/tap interaction (ONLY on press)
+        p.mousePressed = () => {
+          fireOnce(() => p.redraw());
+          return false;
+        };
+
+        p.touchStarted = () => {
+          fireOnce(() => p.redraw());
+          return false; // prevents scroll + synthetic click
+        };
+      });
+    }
   </script>
 </body>
 </html>
